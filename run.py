@@ -6,11 +6,88 @@ from keras.layers import Dense, LSTM
 from mygrad import sliding_window_view
 import tweepy
 import datetime
+from collections import defaultdict
 
 CONSUMER_TOKEN = "1Vu98GqSeX6FG0bILMJ6lO3qh"
 CONSUMER_SECRET = "s2NzIjjmPw86Z2AyJhDtYdyhTLPgEBTn8O0XlH2JxEfVbH1cCV"
 ACCESS_TOKEN = "1858790125-IH9bYyr7sllvPkqOYxTL6dgbWBW1ooDWbh0Uk2C"
 ACCESS_SECRET = "vUhT6KZwCS8r9ysg2NKDIYDH5wDc7b5nx5qAVhzTbwf4R"
+
+
+def poms_scores(text, poms_synonyms):
+    raw_scores = defaultdict(int)
+    tokens = text.lower().split(' ')
+
+    for token in tokens:
+        for word in poms_synonyms:
+            if token == word or token in poms_synonyms[word]:
+                raw_scores[word] += 1
+
+    scores = dict()
+
+    scores['tension'] = raw_scores['tense'] + \
+                        raw_scores['shaky'] + \
+                        raw_scores['on edge'] + \
+                        raw_scores['panicky'] + \
+                       -raw_scores['relaxed'] + \
+                        raw_scores['uneasy'] + \
+                        raw_scores['restless'] + \
+                        raw_scores['nervous'] + \
+                        raw_scores['anxious']
+
+    scores['depression'] = raw_scores['unhappy'] + \
+                           raw_scores['sorry'] + \
+                           raw_scores['sad'] + \
+                           raw_scores['blue'] + \
+                           raw_scores['hopeless'] + \
+                           raw_scores['unworthy'] + \
+                           raw_scores['discouraged'] + \
+                           raw_scores['lonely'] + \
+                           raw_scores['helpless'] + \
+                           raw_scores['worthless'] + \
+                           raw_scores['terrified'] + \
+                           raw_scores['guilty']
+
+    scores['anger'] = raw_scores['angry'] + \
+                      raw_scores['peeved'] + \
+                      raw_scores['grouchy'] + \
+                      raw_scores['spiteful'] + \
+                      raw_scores['annoyed'] + \
+                      raw_scores['resentful'] + \
+                      raw_scores['bitter'] + \
+                      raw_scores['ready to fight'] + \
+                      raw_scores['rebellious'] + \
+                      raw_scores['deceived'] + \
+                      raw_scores['furious'] + \
+                      raw_scores['bad tempered']
+
+    scores['fatigue'] = raw_scores['worn out'] + \
+                        raw_scores['listless'] + \
+                        raw_scores['fatigued'] + \
+                        raw_scores['exhausted'] + \
+                        raw_scores['sluggish'] + \
+                        raw_scores['weary'] + \
+                        raw_scores['bushed']
+
+    scores['confusion'] = raw_scores['confused'] + \
+                          raw_scores['distracted'] + \
+                          raw_scores['muddled'] + \
+                          raw_scores['bewildered'] + \
+                         -raw_scores['efficient'] + \
+                          raw_scores['forgetful'] + \
+                          raw_scores['uncertain']
+
+    scores['vigour'] = raw_scores['lively'] + \
+                       raw_scores['active'] + \
+                       raw_scores['energetic'] + \
+                       raw_scores['cheerful'] + \
+                       raw_scores['alert'] + \
+                       raw_scores['peppy'] + \
+                       raw_scores['carefree'] + \
+                       raw_scores['vigorous']
+
+    return scores
+
 
 def sentiment_time_series(sent_dict, key):
     N = max(sent_dict.keys())
@@ -146,8 +223,11 @@ class MainFrame(wx.Frame):
 
         day = datetime.datetime.now()
 
+        _calm = np.ndarray((1 + n_days,))
+        _happy = np.ndarray((1 + n_days,))
+        _alert = np.ndarray((1 + n_days,))
+
         for i in range(1 + n_days):
-            tweets = None
             if i == 0:
                 tweets = tweepy.Cursor(self.api.search, q="place:96683cc9126741d1").items(100)
             else:
@@ -155,7 +235,19 @@ class MainFrame(wx.Frame):
                                        until=day.strftime('%Y-%m-%d')).items(100)
                 day -= datetime.timedelta(days=1)
 
+            for tweet in tweets:
+                scores = poms_scores(tweet.text, self.poms_syns)
+                _calm[i] += (-scores['tension'] - scores['anger'])
+                _happy[i] += (scores['vigour'] - scores['depression'])
+                _alert[i] += (-scores['fatigue'] - scores['confusion'])
 
+            _calm[i] /= len(tweets)
+            _happy[i] /= len(tweets)
+            _alert[i] /= len(tweets)
+
+        _calm = _calm[::-1]
+        _happy = _happy[::-1]
+        _alert = _alert[::-1]
 
     def _train_model(self):
         model_type = self.alg_selector.GetValue()
