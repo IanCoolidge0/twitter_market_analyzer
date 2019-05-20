@@ -261,8 +261,18 @@ class MainFrame(wx.Frame):
         else:
             data = np.concatenate((_calm, _happy, _alert))
 
-        print("Prediction: ")
-        print(self.model(data))
+        model_output = self.model(data)
+        print("Prediction: " + str(model_output))
+
+        rec = "nothing"
+        if model_output < -0.02:
+            rec = "sell"
+        elif model_output > 0.02:
+            rec = "buy"
+
+        wx.MessageBox("Model gave a prediction of " + str(model_output) + ". \n Recommendation: " + rec,
+                      "Model recommendation",
+                      wx.OK | wx.ICON_INFORMATION)
 
     def _train_model(self):
         model_type = self.alg_selector.GetValue()
