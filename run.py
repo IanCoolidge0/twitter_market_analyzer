@@ -256,10 +256,13 @@ class MainFrame(wx.Frame):
         _happy = _happy[::-1]
         _alert = _alert[::-1]
 
-        print(_happy)
+        if self.use_lstm_days:
+            data = windowed_data_lstm(1 + n_days, _calm, _happy, _alert)
+        else:
+            data = np.concatenate((_calm, _happy, _alert))
 
         print("Prediction: ")
-        print(self.model(np.concatenate((_calm, _happy, _alert))))
+        print(self.model(data))
 
     def _train_model(self):
         model_type = self.alg_selector.GetValue()
