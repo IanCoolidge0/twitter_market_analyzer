@@ -9,9 +9,9 @@ import datetime
 from collections import defaultdict
 
 CONSUMER_TOKEN = "1Vu98GqSeX6FG0bILMJ6lO3qh"
-CONSUMER_SECRET = "s2NzIjjmPw86Z2AyJhDtYdyhTLPgEBTn8O0XlH2JxEfVbH1cCV"
 ACCESS_TOKEN = "1858790125-IH9bYyr7sllvPkqOYxTL6dgbWBW1ooDWbh0Uk2C"
-ACCESS_SECRET = "vUhT6KZwCS8r9ysg2NKDIYDH5wDc7b5nx5qAVhzTbwf4R"
+CONSUMER_SECRET = ""
+ACCESS_SECRET = ""
 
 
 def poms_scores(text, poms_synonyms):
@@ -191,6 +191,9 @@ class MainFrame(wx.Frame):
         with open("sent_dict.txt", "rb") as f:
             self.sent_dict = pickle.load(f)
 
+        with open("poms_synonyms.txt", "rb") as f:
+            self.poms_syns = pickle.load(f)
+
         self.calm = -sentiment_time_series(self.sent_dict, "tension") - sentiment_time_series(self.sent_dict, "anger")
         self.happy = sentiment_time_series(self.sent_dict, "vigour") - sentiment_time_series(self.sent_dict, "depression")
         self.alert = -sentiment_time_series(self.sent_dict, "fatigue") - sentiment_time_series(self.sent_dict, "confusion")
@@ -235,19 +238,28 @@ class MainFrame(wx.Frame):
                                        until=day.strftime('%Y-%m-%d')).items(100)
                 day -= datetime.timedelta(days=1)
 
+            tweet_count = 0
+
             for tweet in tweets:
                 scores = poms_scores(tweet.text, self.poms_syns)
                 _calm[i] += (-scores['tension'] - scores['anger'])
                 _happy[i] += (scores['vigour'] - scores['depression'])
                 _alert[i] += (-scores['fatigue'] - scores['confusion'])
 
-            _calm[i] /= len(tweets)
-            _happy[i] /= len(tweets)
-            _alert[i] /= len(tweets)
+                tweet_count += 1
+
+            _calm[i] /= tweet_count
+            _happy[i] /= tweet_count
+            _alert[i] /= tweet_count
 
         _calm = _calm[::-1]
         _happy = _happy[::-1]
         _alert = _alert[::-1]
+
+        print(_happy)
+
+        print("Prediction: ")
+        print(self.model(np.concatenate((_calm, _happy, _alert))))
 
     def _train_model(self):
         model_type = self.alg_selector.GetValue()
